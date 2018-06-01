@@ -20,14 +20,16 @@ class NBayes(object):
         self.calProp()
 
         #生成词频空间向量
-        optimizal = False
+        optimizal = True
         if(optimizal):
             self.calTfIdf() #计算Tf-Idf
         else:
             self.calWordFreq()#计算普通词频
 
+        self.calTdm()
+
     def getDocmenstCount(self):
-        return len(self.labels)
+        return len(self.lables)
 
     def trainSet(self):
         pass;
@@ -58,7 +60,6 @@ class NBayes(object):
 
         self.tf = np.zeros([docCount,vocaCount])
         self.idf = np.zeros([1,vocaCount])
-
         for idx in range(docCount):
             for word in self.documents[idx]:
                 self.tf[idx,self.vocabulary.index(word)] +=1
@@ -78,14 +79,15 @@ class NBayes(object):
                 self.tf[idx,self.vocabulary.index(word)] += 1
 
             # 消除不同句长导致的偏差
-            self.tf[idx] = float(self.tf[idx])/len(self.documents[idx])
+            self.tf[idx] = (self.tf[idx])/len(self.documents[idx])
 
-            for word in set(self.documents):
+            for word in set(self.documents[idx]):
                 self.idf[0,self.vocabulary.index(word)] +=1
 
-            self.idf = np.log(float(docCount) / self.idf)
-            self.tf = np.multiply(self.tf, self.idf)  # 矩阵与向量的点乘
+        self.idf = np.log(float(docCount) / (self.idf+1))
+        self.tf = np.multiply(self.tf, self.idf)  # 矩阵与向量的点乘
 
+        print("tf-idf successed!")
 
     #计算tdm值 # P(x|yi)
     def calTdm(self):
@@ -101,6 +103,53 @@ class NBayes(object):
         self.tdm = self.tdm / sumList #归一化？？？
 
 
+    #def 测试集映射到词典中
+    def map2Vacab(self,testData):
+        testDataFreq = np.zeros([1,len(self.vocabulary)])
+        for word in testData:
+            if word in self.vocabulary:
+                testDataFreq[0,self.vocabulary.index(word)] +=1
+        return  testDataFreq
+
+    # 输出分类类别
+    def predict(self, testData):
+        testDataFreq = self.map2Vacab(testData)
+        if np.shape(testDataFreq)[1] != len(self.vocabulary):
+            print
+            "输入错误"
+            exit(0)
+        predvalue = 0
+        predclass = ""
+        for tdm_vect, keyclass in zip(self.tdm, self.Pcates):
+            # P(x|yi)P(yi)
+            temp = np.sum(testDataFreq * tdm_vect * self.Pcates[keyclass])
+            if temp > predvalue:
+                predvalue = temp
+                predclass = keyclass
+        return predclass
 
 
+    #这种算法可能会导致无法判断出属于哪一类的问题，因为可能会产生predvalue的值在哪一类中都为0的情况
+    def predictOther(self, testData):
+        testDataFreq = self.map2Vacab(testData)
+        if np.shape(testDataFreq)[1] != len(self.vocabulary):
+            print
+            "输入错误"
+            exit(0)
+        predvalue = 0
+        predclass = ""
+        for tdm_vect, keyclass in zip(self.tdm, self.Pcates):
+            # P(x|yi)P(yi)
+            temp = 1
+            for idx in range(len(testDataFreq[0])):
+                if testDataFreq[0,idx] >0 :
+                    temp *= tdm_vect[idx]
+                else:
+                    temp *= (1-tdm_vect[idx])
 
+            temp *= self.Pcates[keyclass]
+
+            if temp > predvalue:
+                temp = predvalue
+                predclass = keyclass
+        return predclass
